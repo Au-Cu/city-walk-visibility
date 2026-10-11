@@ -7,7 +7,7 @@ test('Pages isolates API Functions from static real-map assets',async()=>{
   assert.deepEqual(routes,{version:1,include:['/api/*'],exclude:[]});
   const config=JSON.parse(await fs.readFile(new URL('../cloudflare/pages/wrangler.jsonc',import.meta.url),'utf8'));
   assert.equal(config.name,'city-walk-visibility');
-  assert.equal(config.pages_build_output_dir,'../../.pages-output');
+  assert.equal(config.pages_build_output_dir,'./.pages-output');
   assert.equal(config.compatibility_date,'2026-05-22');
   assert.equal(config.main,undefined);
 });

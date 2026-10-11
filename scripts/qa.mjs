@@ -20,7 +20,7 @@ try{
   if(await page.locator('#best-length').textContent()!==await page.locator('#base-length').textContent())throw new Error('Zero-detour UI mismatch');
   const downloadEvent=page.waitForEvent('download');await page.locator('#download').click();const download=await downloadEvent;await download.saveAs(path.join(output,'route.geojson'));const geo=JSON.parse(await fs.readFile(path.join(output,'route.geojson'),'utf8'));if(geo.features[0].geometry.type!=='LineString')throw new Error('Export missing route');
   await page.locator('#detour').fill('25');await page.locator('#detour').dispatchEvent('input');await page.locator('#calculate').click();await waitPlan();
-  await page.locator('[data-pick="via"]').click();await page.locator('#map').click({position:{x:550,y:340}});if((await page.locator('#via-name').textContent())!=='地图选点')throw new Error('Map input failed');
+  await page.locator('#waypoint-list [data-pick]').first().click();await page.locator('#map').click({position:{x:550,y:340}});if((await page.locator('#waypoint-list small').first().textContent())!=='地图选点')throw new Error('Map input failed');
   await page.locator('#tokyo-example').click();
   await page.setViewportSize({width:390,height:900});await page.waitForTimeout(500);const width=await page.evaluate(()=>({client:document.documentElement.clientWidth,scroll:document.documentElement.scrollWidth}));if(width.scroll>width.client+1)throw new Error('Mobile horizontal overflow');
   await page.screenshot({path:path.join(output,'tokyo-mobile.png'),fullPage:true});
@@ -28,7 +28,7 @@ try{
   if(process.argv.includes('--live')){
   // These real Tokyo points are outside the bundled snapshot: test the entire live loading pipeline.
   await page.setViewportSize({width:1440,height:1050});
-  await page.locator('#start').fill('35.708, 139.7825');await page.locator('#via').fill('35.710, 139.7823');await page.locator('#end').fill('35.711, 139.7845');
+  await page.locator('#start').fill('35.708, 139.7825');await page.locator('#waypoint-list input').first().fill('35.710, 139.7823');await page.locator('#end').fill('35.711, 139.7845');
   const liveRequests=[];page.on('response',response=>{if(response.url().includes('/api/map-data'))liveRequests.push({url:response.url().split('?')[0],status:response.status()});});
   await page.locator('#calculate').click();await waitPlan();
   live={requests:liveRequests,best:await page.locator('#best-length').textContent(),baseline:await page.locator('#base-length').textContent(),data:await page.locator('#data-detail').textContent()};

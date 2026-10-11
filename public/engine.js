@@ -1,4 +1,5 @@
 // Real OSM road graph + bounded, sampled two-dimensional visibility coverage.
+import {validateRoutePoints} from './waypoints.js';
 const EARTH = 6371008.8;
 const RAD = Math.PI / 180;
 export const clamp = (x, lo, hi) => Math.max(lo, Math.min(hi, x));
@@ -157,12 +158,46 @@ function routePublic(data,route,grid){
   return {length:route.length,backtracking:route.backtracking,repeated:route.repeated,area:route.area,coordinates:nodeIds.map(id=>[data.nodes[id].lat,data.nodes[id].lon]),osmNodeIds:nodeIds.map(id=>data.nodes[id].osmId),wayIds:[...new Set(edgeIds.map(id=>data.edges[id].wayId))],samples:route.samples.map(p=>({coordinates:data.unproject(p.x,p.y),heading:p.heading,distance:p.distance})),coverage:coverageGeoJSON(data,route.mask,grid)};
 }
 export function snapPoint(data,point){const p=data.project(point.lat,point.lon);let id=-1,best=Infinity;for(let i=0;i<data.nodes.length;i++){if(!data.adj[i].length&&!data.reverse[i].length)continue;const d=distance(p,data.nodes[i]);if(d<best){best=d;id=i;}}if(id<0||best>180)throw new Error('所选点距离已知步行道路超过 180 米，请选在街道附近，或重新加载区域。');return {id,offset:best,coordinates:[data.nodes[id].lat,data.nodes[id].lon]};}
+
+// Preserve exhaustive one/two-leg behavior. More legs use a bounded beam;
+// every retained full route still passes the same hard constraints.
+export async function combineCandidates(data,legLists,options,budget,notify=()=>{}){
+  const routes=[];
+  if(legLists.length<=2){
+    const combine=(phase,legs,length,backtracking)=>{if(length>budget+.001||backtracking>options.backtrack+.001)return;if(phase===legLists.length){const repeated=repeatedLength(data,legs.flatMap(l=>l.edgeIds)),limit=options.repeat==='any'?Infinity:options.repeat==='small'?length*.05:.001;if(repeated<=limit)routes.push({legs:legs.slice(),length,backtracking,repeated});return;}for(const leg of legLists[phase]){legs.push(leg);combine(phase+1,legs,length+leg.length,backtracking+leg.backtracking);legs.pop();}};
+    combine(0,[],0,0);return {routes,truncated:false,expanded:routes.length,frontierLimit:null};
+  }
+  const width=options.quality==='fine'?2048:1024,remaining=new Float64Array(legLists.length+1);
+  for(let i=legLists.length-1;i>=0;i--)remaining[i]=remaining[i+1]+Math.min(...legLists[i].map(l=>l.length));
+  let frontier=[{legs:[],length:0,backtracking:0,repeated:0,used:new Set()}],truncated=false,expanded=0;
+  const thin=states=>{states.sort((a,b)=>a.length-b.length||a.backtracking-b.backtracking||a.repeated-b.repeated);if(states.length<=width)return states;truncated=true;const short=Math.floor(width/2),keep=states.slice(0,short),rest=width-short;for(let i=0;i<rest;i++)keep.push(states[short+Math.floor(i*(states.length-short-1)/Math.max(1,rest-1))]);return keep;};
+  for(let phase=0;phase<legLists.length;phase++){
+    let next=[];
+    for(const state of frontier)for(const leg of legLists[phase]){
+      expanded++;const length=state.length+leg.length,backtracking=state.backtracking+leg.backtracking;
+      if(length+remaining[phase+1]>budget+.001||backtracking>options.backtrack+.001)continue;
+      const used=new Set(state.used);let repeated=state.repeated;
+      const repeatLimit=options.repeat==='any'?Infinity:options.repeat==='small'?(phase===legLists.length-1?length:budget)*.05:.001;
+      for(const id of leg.edgeIds){const edge=data.edges[id];if(used.has(edge.physicalId))repeated+=edge.length;used.add(edge.physicalId);if(repeated>repeatLimit)break;}
+      if(repeated>repeatLimit)continue;
+      next.push({legs:[...state.legs,leg],length,backtracking,repeated,used});
+      if(next.length>=width*4)next=thin(next);
+    }
+    frontier=thin(next);
+    notify({stage:'combine',progress:24,text:`组合途经点路线：${phase+1} / ${legLists.length} 段 · 保留 ${frontier.length} 个候选`});
+    if(!frontier.length)break;
+    await new Promise(resolve=>setTimeout(resolve,0));
+  }
+  for(const {used,...route} of frontier)if(route.legs.length===legLists.length)routes.push(route);
+  return {routes,truncated,expanded,frontierLimit:width};
+}
 export async function planRoute(data,input,notify=()=>{}){
+  validateRoutePoints(input.points);
   const options={detour:.25,backtrack:500,radius:120,fov:180,repeat:'none',quality:'standard',...input.options};
   if(![180,360].includes(options.fov)||options.radius<30||options.radius>300||options.detour<0||options.detour>1||options.backtrack<0)throw new Error('路线参数超出支持范围。');
   if(!data.buildings.length)throw new Error('该区域没有建筑轮廓，无法可靠计算建筑遮挡。');
   const snaps=input.points.map(p=>snapPoint(data,p));if(snaps.some((p,i)=>i&&p.id===snaps[i-1].id))throw new Error('相邻两个点吸附到了同一位置，请拉开距离。');
-  notify({stage:'search',progress:10,text:'正在真实步行路网上搜索候选路线…'});
+  notify({stage:'search',progress:10,completed:0,total:snaps.length-1,text:'正在真实步行路网上搜索候选路线…'});
   const baselineLegs=[];for(let i=1;i<snaps.length;i++){const leg=shortestPath(data,snaps[i-1].id,snaps[i].id);if(!leg)throw new Error('所选点之间的步行路网不连通。请检查河岸、封闭区域或扩大数据范围。');baselineLegs.push(leg);}
   const baselineLength=baselineLegs.reduce((sum,l)=>sum+l.length,0),budget=baselineLength*(1+options.detour);
   const legLists=[];
@@ -180,18 +215,18 @@ export async function planRoute(data,input,notify=()=>{}){
       const leg=shortestPath(data,start,end,e=>e.length*(1+(use.get(e.physicalId)||0)*(.12+seed*.025))*(.75+.65*hash(e.physicalId,seed)));add(leg);if(leg)for(const id of leg.edgeIds){const key=data.edges[id].physicalId;use.set(key,(use.get(key)||0)+1);}
     }
     list.sort((a,b)=>a.length-b.length);legLists.push(list.slice(0,options.quality==='fine'?36:26));
+    notify({stage:'search',progress:10+Math.round(13*(phase+1)/baselineLegs.length),completed:phase+1,total:baselineLegs.length,text:`搜索候选路段：${phase+1} / ${baselineLegs.length}`});
+    await new Promise(resolve=>setTimeout(resolve,0));
   }
   const baseline={legs:baselineLegs,length:baselineLength,backtracking:baselineLegs.reduce((s,l)=>s+l.backtracking,0),repeated:repeatedLength(data,baselineLegs.flatMap(l=>l.edgeIds))};
-  const combined=[];
-  const combine=(phase,legs,length,backtracking)=>{if(length>budget+.001||backtracking>options.backtrack+.001)return;if(phase===legLists.length){const edgeIds=legs.flatMap(l=>l.edgeIds),repeated=repeatedLength(data,edgeIds),limit=options.repeat==='any'?Infinity:options.repeat==='small'?length*.05:.001;if(repeated>limit)return;combined.push({legs:legs.slice(),length,backtracking,repeated});return;}for(const leg of legLists[phase]){legs.push(leg);combine(phase+1,legs,length+leg.length,backtracking+leg.backtracking);legs.pop();}};
-  combine(0,[],0,0);combined.sort((a,b)=>a.length-b.length);
+  const combination=await combineCandidates(data,legLists,options,budget,notify),combined=combination.routes;combined.sort((a,b)=>a.length-b.length);
   if(!combined.length)throw new Error(`未找到同时满足约束的候选路线。最短参考为 ${(baselineLength/1000).toFixed(2)} 公里，投影回头 ${Math.round(baseline.backtracking)} 米、重复路段 ${Math.round(baseline.repeated)} 米。可以提高回头上限或允许少量重复。`);
   const limit=options.quality==='fine'?120:64,selected=combined.length<=limit?combined:Array.from({length:limit},(_,i)=>combined[Math.floor(i*(combined.length-1)/(limit-1))]);
   const routes=[baseline,...selected],grid=createCoverageGrid(data,routes,options),cache=new Map();let observerCount=0;
   const maskAt=sample=>{const heading=options.fov===360?0:sample.heading,key=Math.round(sample.x*5)+':'+Math.round(sample.y*5)+':'+Math.round(heading*10000);if(cache.has(key))return cache.get(key);const polygon=visibilityPolygon(data,sample,heading,options),mask=new Uint32Array(grid.words);scanPolygon(polygon,grid,i=>{if(!(grid.occupied[i>>>5]&(1<<(i&31))))mask[i>>>5]|=1<<(i&31);});cache.set(key,mask);observerCount++;return mask;};
-  for(let i=0;i<routes.length;i++){const route=routes[i];route.samples=sampleRoute(data,route,options.quality==='fine'?15:28);route.mask=new Uint32Array(grid.words);for(const sample of route.samples)unionInto(route.mask,maskAt(sample));route.area=bitCount(route.mask)*grid.cell*grid.cell;if(i%2===0){notify({stage:'visibility',progress:25+Math.round(70*(i+1)/routes.length),text:`建筑遮挡与覆盖去重：${i+1} / ${routes.length} 条路线`});await new Promise(resolve=>setTimeout(resolve,0));}}
+  for(let i=0;i<routes.length;i++){const route=routes[i];route.samples=sampleRoute(data,route,options.quality==='fine'?15:28);route.mask=new Uint32Array(grid.words);for(const sample of route.samples)unionInto(route.mask,maskAt(sample));route.area=bitCount(route.mask)*grid.cell*grid.cell;if(i%2===0){notify({stage:'visibility',progress:25+Math.round(70*(i+1)/routes.length),completed:i+1,total:routes.length,text:`建筑遮挡与覆盖去重：${i+1} / ${routes.length} 条路线`});await new Promise(resolve=>setTimeout(resolve,0));}}
   selected.sort((a,b)=>b.area-a.area||a.backtracking-b.backtracking||a.length-b.length);const best=selected[0];
   const clipped=best.samples.some(p=>p.x-options.radius<data.extent.minX||p.x+options.radius>data.extent.maxX||p.y-options.radius<data.extent.minY||p.y+options.radius>data.extent.maxY);
   notify({stage:'done',progress:100,text:'路线计算完成'});
-  return {best:routePublic(data,best,grid),baseline:routePublic(data,baseline,grid),budget,baselineLength,snaps,inputPoints:input.points,candidatesGenerated:combined.length,candidatesEvaluated:selected.length,observerCount,cellSize:grid.cell,sampleStep:options.quality==='fine'?15:28,axisDegrees:data.axisAngle/RAD,clipped,options,optimality:'best_evaluated_candidate',stats:data.stats,timestamp:data.metadata.timestamp};
+  return {best:routePublic(data,best,grid),baseline:routePublic(data,baseline,grid),budget,baselineLength,snaps,inputPoints:input.points,candidatesGenerated:combined.length,candidatesEvaluated:selected.length,candidateSearchTruncated:combination.truncated,combinationsExpanded:combination.expanded,frontierLimit:combination.frontierLimit,observerCount,cellSize:grid.cell,sampleStep:options.quality==='fine'?15:28,axisDegrees:data.axisAngle/RAD,clipped,options,optimality:'best_evaluated_candidate',stats:data.stats,timestamp:data.metadata.timestamp};
 }

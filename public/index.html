@@ -16,7 +16,7 @@
   </header>
   <main class="workspace">
     <aside class="sidebar">
-      <div class="intro"><span class="eyebrow">01 / 选择你的步行路线</span><h1>少绕路，<br>多看见一点。</h1><p>设置三个点，让建筑遮挡后的视野，参与路线选择。</p></div>
+      <div class="intro"><span class="eyebrow">01 / 选择你的步行路线</span><h1>少绕路，<br>多看见一点。</h1><p>设置起终点，按需添加途经点，让建筑遮挡后的视野参与路线选择。</p></div>
       <form id="route-form">
         <section class="location-tools" aria-label="选择城市与地图数据">
           <label for="city-select">从一座城市开始 <span>全球地图 / 局部计算</span></label>
@@ -31,8 +31,13 @@
           </details>
         </section>
         <div class="point-field"><label for="start">起点 <span class="point-dot start-dot">1</span></label><div class="point-row"><input id="start" name="start" required value="35.71104, 139.79633" aria-label="起点纬度，经度"><button type="button" class="pick-button" data-pick="start" aria-label="在地图选择起点">地图选点</button></div><small id="start-name">浅草 · 雷门附近</small></div>
-        <div class="point-field"><label for="via">途经点 <span class="point-dot via-dot">2</span></label><div class="point-row"><input id="via" name="via" value="35.71465, 139.80177" aria-label="途经点纬度，经度"><button type="button" class="pick-button" data-pick="via" aria-label="在地图选择途经点">地图选点</button></div><small id="via-name">隅田公园河岸 · 可留空</small></div>
-        <div class="point-field"><label for="end">终点 <span class="point-dot end-dot">3</span></label><div class="point-row"><input id="end" name="end" required value="35.71010, 139.81070" aria-label="终点纬度，经度"><button type="button" class="pick-button" data-pick="end" aria-label="在地图选择终点">地图选点</button></div><small id="end-name">押上 · 晴空塔附近</small></div>
+        <section class="waypoints-section" aria-label="途经点列表">
+          <div class="waypoints-heading"><span>途经点 <small id="waypoint-count">0 / 8</small></span><button type="button" id="add-waypoint" class="text-button">＋ 添加途经点</button></div>
+          <div id="waypoint-list"></div>
+          <p id="no-waypoints" class="setting-note">不设置途经点，直接从起点走到终点。</p>
+          <p class="waypoint-note">按列表顺序经过 · 可上下调整或删除 · 最多 8 个</p>
+        </section>
+        <div class="point-field"><label for="end">终点 <span class="point-dot end-dot" id="end-number">2</span></label><div class="point-row"><input id="end" name="end" required value="35.71010, 139.81070" aria-label="终点纬度，经度"><button type="button" class="pick-button" data-pick="end" aria-label="在地图选择终点">地图选点</button></div><small id="end-name">押上 · 晴空塔附近</small></div>
         <div class="preset-row"><button type="button" id="tokyo-example" class="text-button">恢复东京示例</button><span>输入格式：纬度, 经度</span></div>
         <div class="setting"><label for="detour">最多多走 <output id="detour-value">25%</output></label><input type="range" id="detour" min="0" max="80" step="5" value="25"><div class="range-caption"><span>贴近最短路</span><span>给风景留余量</span></div></div>
         <details class="advanced"><summary>视野与路线约束<span>调整</span></summary><div class="settings-grid">
@@ -44,7 +49,7 @@
           <label>地图服务<select id="endpoint"><option value="auto">自动 / 专用后端</option><option value="coffee">Private.coffee</option><option value="vk">VK Maps</option><option value="configured">仅专用后端</option></select></label>
         </div><p class="setting-note">投影回头按主要街道两轴累计，包含横向绕出后返回。直线距离不能替代实际步行路程。</p></details>
         <button type="submit" id="calculate" class="primary-button">寻找可见范围更大的路线 <span aria-hidden="true">↗</span></button>
-        <div class="progress-area" id="progress-area" hidden><div class="progress-track"><div id="progress-bar"></div></div><div class="progress-row"><span id="progress-text" role="status" aria-live="polite">正在加载…</span><button type="button" id="cancel" class="text-button">取消</button></div></div>
+        <div class="progress-area" id="progress-area" hidden><div class="progress-track"><div id="progress-bar"></div></div><div class="progress-row"><span id="progress-text" role="status" aria-live="polite">正在加载…</span><button type="button" id="cancel" class="text-button">取消</button></div><p id="progress-eta" class="progress-eta">已用时 0 秒 · 剩余时间评估中</p></div>
         <div id="error" class="error" role="alert" hidden></div>
       </form>
       <section class="result-section" id="results" hidden aria-label="路线对比">

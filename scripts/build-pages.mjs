@@ -4,7 +4,7 @@ import {fileURLToPath} from 'node:url';
 import {spawnSync} from 'node:child_process';
 
 const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
-const output=path.join(root,'.pages-output');
+const output=path.join(root,'cloudflare/pages/.pages-output');
 const marker='.city-walk-pages-build';
 const identity='city-walk-visibility Pages build output';
 const runtime=path.join(root,'.sites-runtime');

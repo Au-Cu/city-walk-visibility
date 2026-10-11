@@ -1,6 +1,6 @@
 # 城市漫步 · 看见更多
 
-全球城市真实地图原型，东京只是示例。输入起点、一个可选途经点和终点，在真实 OSM 步行路网上生成候选，使用真实建筑轮廓计算二维视线遮挡，并按全程去重可见地面面积选路。地图点击、坐标输入、拖拽标记、绕行预算、两轴投影回头、重复路段限制、前向/环视、当前视域预览、GeoJSON 导出均可用。新增城市筛选、任意坐标跳转、浏览器定位、本地 Overpass JSON 导入及独立 Cloudflare 公网部署。
+全球城市真实地图原型，东京只是示例。输入起点、零至八个按顺序经过的途经点和终点，在真实 OSM 步行路网上生成候选，使用真实建筑轮廓计算二维视线遮挡，并按全程去重可见地面面积选路。地图点击、坐标输入、拖拽标记、绕行预算、两轴投影回头、重复路段限制、前向/环视、当前视域预览、GeoJSON 导出均可用。新增城市筛选、任意坐标跳转、浏览器定位、本地 Overpass JSON 导入、计算 ETA 及独立 Cloudflare 公网部署。
 
 公网入口：[城市漫步 · Cloudflare Pages](https://city-walk-visibility.pages.dev/)。源码：[Au-Cu/city-walk-visibility](https://github.com/Au-Cu/city-walk-visibility)。
 
@@ -25,7 +25,7 @@
 
 ## Cloudflare 公网部署
 
-默认部署到项目独立的 **Cloudflare Pages** 地址，不注册账号级 `workers.dev` 后缀，不依赖 ChatGPT 登录或 Sites 私有访问网关。`cloudflare/pages/wrangler.jsonc` 声明 Pages 项目，`scripts/build-pages.mjs` 将 `public/` 和同源地图 API 打包到 `.pages-output/`。`_routes.json` 只让 `/api/*` 调用 Functions；静态数据直接由 Pages 提供。路由计算仍在浏览器 Web Worker 中，不需要创建付费数据库或存储桶。
+默认部署到项目独立的 **Cloudflare Pages** 地址，不注册账号级 `workers.dev` 后缀，不依赖 ChatGPT 登录或 Sites 私有访问网关。`cloudflare/pages/wrangler.jsonc` 声明 Pages 项目，`scripts/build-pages.mjs` 将 `public/` 和同源地图 API 打包到 `cloudflare/pages/.pages-output/`，与原 Sites 构建相互隔离。`_routes.json` 只让 `/api/*` 调用 Functions；静态数据直接由 Pages 提供。路由计算仍在浏览器 Web Worker 中，不需要创建付费数据库或存储桶。
 
 ```powershell
 npm ci
@@ -36,6 +36,8 @@ npm run cf:deploy
 ```
 
 创建项目只需执行一次；已有本项目时直接部署。部署返回项目的 `pages.dev` 地址和该次版本地址。自行部署到其他账户时，先修改 Pages 配置中的 `name`，不要覆盖同名的无关项目。Windows ARM 必须使用 x64 Node 运行 Wrangler；兼容日期锁定在本项目已测试的 2026-05-22 运行时。后续可在 Cloudflare 添加自己的域名。本次使用 Direct Upload；GitHub 推送不会自动触发部署，更新后需要执行 `npm run cf:deploy`。
+
+`cf:dev` 用共用 Worker 入口在本机预览相同的前端和地图 API，以绕开 Wrangler 4.92 的 Pages 本地资产与 Vinext 重定向冲突；它不创建线上 Worker。`cf:deploy` 仍只发布到 Pages。
 
 公共地图接口只适合小规模试验，不保证可用性。要稳定支持城市内任意区域，需接入自建或获得授权的专用 Overpass 数据后端：
 
@@ -70,6 +72,14 @@ node scripts/fetch-data.mjs
 第二条命令刷新真实东京快照与 Leaflet 本地资源，正常使用不需要执行。其他内置城区可手动运行 `node scripts/fetch-city.mjs <city-id> --endpoint <获授权的 HTTPS Overpass 地址>`；一次性数据提取与运行时后端分开，禁止将 Overpass 主服务接成本站自动后端。遇到限流或超时先等待，脚本最多自动重试一次，不并发抓取或拼接全球数据。
 
 完整 Sites 托管构建可执行 `npm ci` 和 `npm run build`；`npm run dev:lite` 是上述无依赖预览的快捷方式。`.openai/hosting.json` 中的项目标识对应原作者的私有 Sites 项目，访问权限不随 Cloudflare 发布改变；自行部署 Sites 时需使用自己的项目配置。Pages 部署不使用该标识。
+
+## 途经点与计算时间
+
+途经点可全部删除，也可以逐个添加，最多 8 个。每个点支持坐标输入、地图选点和拖动地图标记；用上下箭头调整途经顺序。添加后未填写的点需补齐或删除，程序不会悄悄忽略它。地图编号、最短参考、绕行预算和视域覆盖都按整条有序路线重新计算。必经点要求与不重复/回头限制冲突时明确报错，不自动删除点或放宽约束。
+
+计算时显示已用时。ETA 优先根据正在评估的候选速度滚动更新，也参考这个浏览器近期相同城市、点数及视野设置的实测计算耗时。首次计算前期、加载数据及等待外部地图服务时可显示“剩余时间未知/评估中”；估算不是完成时间承诺。历史只保存在本地浏览器，不上传。完成后路线详情显示总计算耗时，取消或失败后停止计时。
+
+两个及以上途经点采用限宽组合搜索，标准模式每阶段最多保留 1,024 个部分路线，精细模式 2,048 个；避免按途经点数量指数枚举全部路径。保留的完整候选仍严格检查绕行、投影回头与重复约束。限宽发生时界面标注“限宽搜索”，仍不保证全局最优。
 
 ## 数据与计算
 

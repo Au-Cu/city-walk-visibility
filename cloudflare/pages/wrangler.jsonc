@@ -1,6 +1,6 @@
 {
   "$schema": "../../node_modules/wrangler/config-schema.json",
   "name": "city-walk-visibility",
-  "pages_build_output_dir": "../../.pages-output",
+  "pages_build_output_dir": "./.pages-output",
   "compatibility_date": "2026-05-22"
 }
