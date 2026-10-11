@@ -10,3 +10,4 @@ dist/
 .next/
 .env*
 next-env.d.ts
+.pages-output/

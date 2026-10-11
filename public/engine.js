@@ -88,7 +88,9 @@ export function buildDataset(raw, suppliedMetadata) {
   }
   if(!edges.length)throw new Error('这个区域没有可用的步行路网。');
   const segmentGrid=new Map(),buildingGrid=new Map(),segments=[],gridSize=48;
-  const addGrid=(grid,box,id)=>{for(let gx=Math.floor(box.minX/gridSize);gx<=Math.floor(box.maxX/gridSize);gx++)for(let gy=Math.floor(box.minY/gridSize);gy<=Math.floor(box.maxY/gridSize);gy++){const key=gx+':'+gy;if(!grid.has(key))grid.set(key,[]);grid.get(key).push(id);}};
+  // Imported ways can extend far beyond the requested region. Index only the
+  // local extent plus maximum sight radius, never an unbounded remote polygon.
+  const addGrid=(grid,box,id)=>{const minX=Math.max(box.minX,extent.minX-300),maxX=Math.min(box.maxX,extent.maxX+300),minY=Math.max(box.minY,extent.minY-300),maxY=Math.min(box.maxY,extent.maxY+300);for(let gx=Math.floor(minX/gridSize);gx<=Math.floor(maxX/gridSize);gx++)for(let gy=Math.floor(minY/gridSize);gy<=Math.floor(maxY/gridSize);gy++){const key=gx+':'+gy;if(!grid.has(key))grid.set(key,[]);grid.get(key).push(id);}};
   buildings.forEach((b,index)=>{addGrid(buildingGrid,b.box,index);for(const ring of b.rings)for(let i=1;i<ring.length;i++){const a=ring[i-1],c=ring[i];if(distance(a,c)<.001)continue;const id=segments.length;segments.push([a.x,a.y,c.x,c.y]);addGrid(segmentGrid,{minX:Math.min(a.x,c.x),maxX:Math.max(a.x,c.x),minY:Math.min(a.y,c.y),maxY:Math.max(a.y,c.y)},id);}});
   const axisAngle=totalLength&&Math.hypot(axisC,axisS)/totalLength>.15?Math.atan2(axisS,axisC)/4:0;
   return {metadata:{...metadata,timestamp:raw.osm3s?.timestamp_osm_base||metadata.fetchedAt},project,unproject,extent,nodes,adj,reverse,edges,roads,buildings,segments,segmentGrid,buildingGrid,gridSize,axisAngle,segmentMarks:new Uint32Array(segments.length),epoch:0,stats:{nodes:nodes.length,directedEdges:edges.length,roadWays:new Set(roads.map(r=>r.id)).size,buildings:buildings.length,malformedBuildings,skippedRoads}};

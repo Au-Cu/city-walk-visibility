@@ -1,6 +1,54 @@
-# 城市漫步 · 看见东京
+# 城市漫步 · 看见更多
 
-第一版真实地图原型。输入起点、一个可选途经点和终点，在真实 OSM 步行路网上生成候选，使用真实建筑轮廓计算二维视线遮挡，并按全程去重可见地面面积选路。地图点击、坐标输入、拖拽标记、绕行预算、两轴投影回头、重复路段限制、前向/环视、当前视域预览、GeoJSON 导出均可用。
+全球城市真实地图原型，东京只是示例。输入起点、一个可选途经点和终点，在真实 OSM 步行路网上生成候选，使用真实建筑轮廓计算二维视线遮挡，并按全程去重可见地面面积选路。地图点击、坐标输入、拖拽标记、绕行预算、两轴投影回头、重复路段限制、前向/环视、当前视域预览、GeoJSON 导出均可用。新增城市筛选、任意坐标跳转、浏览器定位、本地 Overpass JSON 导入及独立 Cloudflare 公网部署。
+
+公网入口：[城市漫步 · Cloudflare Pages](https://city-walk-visibility.pages.dev/)。源码：[Au-Cu/city-walk-visibility](https://github.com/Au-Cu/city-walk-visibility)。
+
+## 第一批 10 城与覆盖范围
+
+内置的是真实**局部城区**数据包，不是城市全境。范围内可以自己重设起点、途经点、终点，不限于示例路线。城市范围外、其他城市或这些城市的数据包边界外，按需请求真实地图服务，或导入真实 OSM 数据。没有数据时明确报错，不生成虚构街区、直线替代路或无遮挡面积冒充建筑视域。
+
+| 城市 | 已内置的真实城区 |
+| --- | --- |
+| 东京 | 浅草—隅田川—押上 |
+| 首尔 | 明洞—清溪川—钟路 |
+| 札幌 | 薄野—大通公园—札幌站南侧 |
+| 伦敦 | 科文特花园—泰晤士河北岸 |
+| 阿姆斯特丹 | 运河带—水坝广场 |
+| 巴黎 | 玛黑区—塞纳河 |
+| 纽约 | 下曼哈顿—翠贝卡 |
+| 杭州 | 西湖东岸—吴山—河坊街 |
+| 新加坡 | 市政区—新加坡河 |
+| 京都 | 三条—鸭川—祇园 |
+
+每个原始 JSON 保留 OSM ID、数据时间、边界、来源和 ODbL 许可，位于 `public/data/`。城市快捷入口不等于完整数据覆盖声明。全球坐标逻辑支持东西、南北半球；当前局部计算区域最多 40 km²，纬度 ±85° 内，不支持跨日期变更线路线。`scripts/check-cities.mjs` 在各城市真实路网与建筑上进行完整候选优化检查。
+
+## Cloudflare 公网部署
+
+默认部署到项目独立的 **Cloudflare Pages** 地址，不注册账号级 `workers.dev` 后缀，不依赖 ChatGPT 登录或 Sites 私有访问网关。`cloudflare/pages/wrangler.jsonc` 声明 Pages 项目，`scripts/build-pages.mjs` 将 `public/` 和同源地图 API 打包到 `.pages-output/`。`_routes.json` 只让 `/api/*` 调用 Functions；静态数据直接由 Pages 提供。路由计算仍在浏览器 Web Worker 中，不需要创建付费数据库或存储桶。
+
+```powershell
+npm ci
+npx wrangler login
+npx wrangler pages project create city-walk-visibility --production-branch main --compatibility-date 2026-05-22
+npm run cf:dev
+npm run cf:deploy
+```
+
+创建项目只需执行一次；已有本项目时直接部署。部署返回项目的 `pages.dev` 地址和该次版本地址。自行部署到其他账户时，先修改 Pages 配置中的 `name`，不要覆盖同名的无关项目。Windows ARM 必须使用 x64 Node 运行 Wrangler；兼容日期锁定在本项目已测试的 2026-05-22 运行时。后续可在 Cloudflare 添加自己的域名。本次使用 Direct Upload；GitHub 推送不会自动触发部署，更新后需要执行 `npm run cf:deploy`。
+
+公共地图接口只适合小规模试验，不保证可用性。要稳定支持城市内任意区域，需接入自建或获得授权的专用 Overpass 数据后端：
+
+```powershell
+npx wrangler pages secret put OVERPASS_ENDPOINT --project-name city-walk-visibility
+npx wrangler pages secret put OVERPASS_API_KEY --project-name city-walk-visibility
+```
+
+第二项仅在后端需要 Bearer API Key 时设置；不要将地址里的凭证或 Key 写入源码。服务器端配置的专用地址不会暴露给前端。自动模式优先使用已配置的专用后端；未配置时依次尝试公共服务。代理限制区域、缓存公共地理数据一小时、不转发访客凭证；公网 Worker 另有同源检查和每个实例内每 IP 每分钟 6 次的尽力限流（不是分布式全局配额）。不默认启用付费资源或购买数据服务。
+
+保留可选的 Workers + Static Assets 配置 `wrangler.public.jsonc` 和 `cf:worker:*` 脚本，供已有 Worker 域名的账户自行使用；它不是本项目当前的发布方式。两种部署复用 `cloudflare/worker.js` 和 `server/data-proxy.mjs`，不维护两套不同的地图逻辑。
+
+也可导入包含道路标签、建筑、多边形成员及完整引用节点的 Overpass JSON（不是 GeoJSON/XML）。文件只在浏览器解析，不上传；上限 25 MiB。已有 `metadata.bounds` 时以它作为查询区域，缺省时从节点推断。超大区域需先裁切，缺建筑轮廓时拒绝可靠遮挡优化。浏览器保留最多 5 个自定义区域，缓存两天；内置数据按城市单独加载，不一次下载全部城市。
 
 ## 运行
 
@@ -12,16 +60,16 @@ cd city-walk-visibility
 node scripts/serve.mjs
 ```
 
-打开 http://127.0.0.1:4173 。首次加载后会自动计算东京示例。选点超出快照范围时，通过同源 `/api/map-data` 代理加载真实道路与建筑。代理采用 Private.coffee / VK Maps 的 Overpass 服务，发送明确的应用标识，并限制查询范围，不转发用户 Cookie 或令牌。单次区域上限 40 平方公里；公共接口繁忙时可切换地图服务或稍后重试。最近获取的自定义区域缓存于浏览器 IndexedDB。底图失败时，真实路网与建筑仍能显示。
+打开 http://127.0.0.1:4173 。首次加载后会自动计算东京示例。切换城市后点击计算，按需加载该城市真实数据包；范围外通过同源 `/api/map-data` 代理加载真实道路与建筑。代理采用 Private.coffee / VK Maps 的 Overpass 服务，发送明确的应用标识，不转发访客 Cookie 或令牌。公共接口繁忙时可稍后重试或导入数据。底图失败时，真实路网与建筑仍能显示。
 
 ```powershell
 node --test tests/*.test.mjs
 node scripts/fetch-data.mjs
 ```
 
-第二条命令刷新真实东京快照与 Leaflet 本地资源，正常使用不需要执行。
+第二条命令刷新真实东京快照与 Leaflet 本地资源，正常使用不需要执行。其他内置城区可手动运行 `node scripts/fetch-city.mjs <city-id> --endpoint <获授权的 HTTPS Overpass 地址>`；一次性数据提取与运行时后端分开，禁止将 Overpass 主服务接成本站自动后端。遇到限流或超时先等待，脚本最多自动重试一次，不并发抓取或拼接全球数据。
 
-完整托管构建可执行 `npm ci` 和 `npm run build`；`npm run dev:lite` 是上述无依赖预览的快捷方式。`.openai/hosting.json` 中的项目标识对应原作者的 Sites 项目；自行部署时需使用自己的托管项目配置。源码公开不等于运行中的站点已公开。
+完整 Sites 托管构建可执行 `npm ci` 和 `npm run build`；`npm run dev:lite` 是上述无依赖预览的快捷方式。`.openai/hosting.json` 中的项目标识对应原作者的私有 Sites 项目，访问权限不随 Cloudflare 发布改变；自行部署 Sites 时需使用自己的项目配置。Pages 部署不使用该标识。
 
 ## 数据与计算
 
@@ -58,4 +106,4 @@ OSM 数据及导出衍生数据：© OpenStreetMap contributors，ODbL 1.0。Lea
 
 源码界面和算法在 `public/`，同源地图代理在 `server/data-proxy.mjs`，托管路由在 `app/`。前端使用 Web Worker 计算，不把路线计算放到服务器。绿色覆盖为全程视域并集，橙色为当前观察点的建筑遮挡视域；滑动“沿路线观察”检查遮挡。
 
-交付时的外部服务状态：已用真实 API 在快照外区域完成过全流程验证（2,580 条道路、10,400 栋建筑，路线约 0.74 km / 最短参考 0.62 km）。更换为符合线上服务政策的代理后，Private.coffee 的查询端点暂报 HTTP 500，VK Maps 暂报 HTTP 504，因此当前不能保证新增区域的即时加载；内置东京真实数据和范围内选点计算不依赖这些服务。代理的参数限制、应用标识和错误处理已通过本地测试。此限制不能用虚构建筑或直线路径替代。
+第一批十个城区均已用完整真实数据运行算法和浏览器流程，示例路线均在 25% 绕行预算内且不重复物理路段；导入数据、切换城区、全球坐标定位和 390 px 手机布局也已检查。新增区域仍依赖数据后端：此前 Private.coffee 查询暂报 HTTP 500、VK Maps 暂报 HTTP 504，因此不能保证任意城市、任意地点的即时加载。十个内置城区和范围内重设点位不依赖外部地图 API；公共底图失败时仍显示实际道路和建筑。此限制不能用虚构建筑或直线路径替代。

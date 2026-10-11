@@ -32,3 +32,15 @@ test('upstream failure and XML/HTML are not passed off as map JSON',async()=>{
   reply=await mapData(req(),async()=>new Response('<html>Error</html>',{headers:{'Content-Type':'text/html'}}));
   assert.equal(reply.status,502);assert.ok((await reply.json()).error.includes('错误页面'));
 });
+test('automatic fallback is sequential and configured credentials never leak',async()=>{
+  const request=()=>new Request('https://example.test/api/map-data?bbox='+bbox+'&service=auto');let calls=0;
+  const fallback=await mapData(request(),async()=>++calls===1?new Response('busy',{status:500}):Response.json({elements:[{id:1}]}));
+  assert.equal(calls,2);assert.equal(fallback.status,200);
+  const custom=await mapData(request(),async(url,options)=>{assert.equal(url,'https://data.example.test/private-path');assert.equal(options.headers.Authorization,'Bearer server-secret');return Response.json({elements:[{id:1}]});},{endpoint:'https://data.example.test/private-path',apiKey:'server-secret'});
+  assert.equal(custom.status,200);assert.equal(custom.headers.get('X-Map-Source'),'configured data backend');assert.ok(!(await custom.text()).includes('server-secret'));
+  assert.equal((await mapData(request(),()=>assert.fail(),{endpoint:'http://bad.test'})).status,503);
+});
+test('empty geographic values and unconfigured private backend fail safely',async()=>{
+  assert.throws(()=>mapQuery('0,,.01,.01'));
+  const response=await mapData(new Request('https://example.test/api/map-data?bbox='+bbox+'&service=configured'),()=>assert.fail());assert.equal(response.status,503);
+});
