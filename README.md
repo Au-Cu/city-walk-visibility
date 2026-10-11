@@ -7,7 +7,8 @@
 本地轻量预览只需要 Node.js 18+，不需要 API Key，也不需要安装 npm 依赖。完整托管构建使用 Sites/Vinext，需要 Node.js 22.13+ 和 npm 依赖；Windows ARM 需使用 x64 Node 的兼容运行环境构建。
 
 ```powershell
-cd D:\Files\旅游路线规划\city-walk
+git clone https://github.com/Au-Cu/city-walk-visibility.git
+cd city-walk-visibility
 node scripts/serve.mjs
 ```
 
@@ -19,6 +20,8 @@ node scripts/fetch-data.mjs
 ```
 
 第二条命令刷新真实东京快照与 Leaflet 本地资源，正常使用不需要执行。
+
+完整托管构建可执行 `npm ci` 和 `npm run build`；`npm run dev:lite` 是上述无依赖预览的快捷方式。`.openai/hosting.json` 中的项目标识对应原作者的 Sites 项目；自行部署时需使用自己的托管项目配置。源码公开不等于运行中的站点已公开。
 
 ## 数据与计算
 
