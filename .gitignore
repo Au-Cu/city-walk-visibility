@@ -1,0 +1,12 @@
+.openai/*.local.*
+.openai/state/
+node_modules/
+qa-output/
+dist/
+.sites-migration/
+.sites-runtime/
+.vinext/
+.wrangler/
+.next/
+.env*
+next-env.d.ts

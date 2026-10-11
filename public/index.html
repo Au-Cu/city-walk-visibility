@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="referrer" content="strict-origin-when-cross-origin">
+  <meta name="description" content="在真实城市的道路与建筑之间，寻找少绕路、少回头、看见更多的步行路线。">
+  <title>城市漫步 · 看见东京</title>
+  <link rel="stylesheet" href="./vendor/leaflet.css"><link rel="stylesheet" href="./style.css">
+  <script src="./vendor/leaflet.js" defer></script><script src="./app.js" type="module"></script>
+</head>
+<body>
+  <header class="header">
+    <a class="brand" href="./" aria-label="城市漫步首页"><span class="brand-mark" aria-hidden="true">↗</span><span>城市漫步<small>CITY WALK / TOKYO</small></span></a>
+    <span class="header-caption">沿路看见，比经过更多。</span>
+    <span class="data-pill" id="data-pill">正在连接真实地图</span>
+  </header>
+  <main class="workspace">
+    <aside class="sidebar">
+      <div class="intro"><span class="eyebrow">01 / 选择你的步行路线</span><h1>少绕路，<br>多看见一点。</h1><p>设置三个点，让建筑遮挡后的视野，参与路线选择。</p></div>
+      <form id="route-form">
+        <div class="point-field"><label for="start">起点 <span class="point-dot start-dot">1</span></label><div class="point-row"><input id="start" name="start" required value="35.71104, 139.79633" aria-label="起点纬度，经度"><button type="button" class="pick-button" data-pick="start" aria-label="在地图选择起点">地图选点</button></div><small id="start-name">浅草 · 雷门附近</small></div>
+        <div class="point-field"><label for="via">途经点 <span class="point-dot via-dot">2</span></label><div class="point-row"><input id="via" name="via" value="35.71465, 139.80177" aria-label="途经点纬度，经度"><button type="button" class="pick-button" data-pick="via" aria-label="在地图选择途经点">地图选点</button></div><small id="via-name">隅田公园河岸 · 可留空</small></div>
+        <div class="point-field"><label for="end">终点 <span class="point-dot end-dot">3</span></label><div class="point-row"><input id="end" name="end" required value="35.71010, 139.81070" aria-label="终点纬度，经度"><button type="button" class="pick-button" data-pick="end" aria-label="在地图选择终点">地图选点</button></div><small id="end-name">押上 · 晴空塔附近</small></div>
+        <div class="preset-row"><button type="button" id="tokyo-example" class="text-button">恢复东京示例</button><span>输入格式：纬度, 经度</span></div>
+        <div class="setting"><label for="detour">最多多走 <output id="detour-value">25%</output></label><input type="range" id="detour" min="0" max="80" step="5" value="25"><div class="range-caption"><span>贴近最短路</span><span>给风景留余量</span></div></div>
+        <details class="advanced"><summary>视野与路线约束<span>调整</span></summary><div class="settings-grid">
+          <label>视距（米）<input id="radius" type="number" min="30" max="300" step="10" value="120"></label>
+          <label>观察方式<select id="fov"><option value="180">前向 180°</option><option value="360">环视 360°</option></select></label>
+          <label>投影回头上限（米）<input id="backtrack" type="number" min="0" max="5000" step="50" value="500"></label>
+          <label>重复路段<select id="repeat"><option value="none">禁止重复</option><option value="small">最多占路程 5%</option><option value="any">允许必要重复</option></select></label>
+          <label>计算精度<select id="quality"><option value="standard">标准</option><option value="fine">精细 · 计算更久</option></select></label>
+          <label>地图服务<select id="endpoint"><option value="coffee">Private.coffee</option><option value="vk">VK Maps</option></select></label>
+        </div><p class="setting-note">投影回头按主要街道两轴累计，包含横向绕出后返回。直线距离不能替代实际步行路程。</p></details>
+        <button type="submit" id="calculate" class="primary-button">寻找可见范围更大的路线 <span aria-hidden="true">↗</span></button>
+        <div class="progress-area" id="progress-area" hidden><div class="progress-track"><div id="progress-bar"></div></div><div class="progress-row"><span id="progress-text" role="status" aria-live="polite">正在加载…</span><button type="button" id="cancel" class="text-button">取消</button></div></div>
+        <div id="error" class="error" role="alert" hidden></div>
+      </form>
+      <section class="result-section" id="results" hidden aria-label="路线对比">
+        <div class="section-label">02 / 比较路线<span id="gain-label"></span></div>
+        <button class="route-card selected" type="button" data-route="best" aria-pressed="true"><span class="route-name"><i class="line-key best-key"></i>视野优先<span id="best-extra"></span></span><span class="route-numbers"><strong id="best-length">—</strong><span><b id="best-area">—</b><small>去重可见面积</small></span></span></button>
+        <button class="route-card" type="button" data-route="baseline" aria-pressed="false"><span class="route-name"><i class="line-key base-key"></i>最短参考<span id="base-time"></span></span><span class="route-numbers"><strong id="base-length">—</strong><span><b id="base-area">—</b><small>去重可见面积</small></span></span></button>
+        <div class="route-details" id="route-details"></div>
+        <button id="download" type="button" class="secondary-button">导出当前路线 GeoJSON</button>
+      </section>
+      <div class="method-note"><span class="eyebrow">真实数据 / 近似优化</span><p>路网来自 OpenStreetMap，建筑轮廓用于二维视线遮挡。结果是已搜索候选中覆盖最大的路线，尚不保证全局最优。</p><a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">© OpenStreetMap contributors · ODbL</a></div>
+    </aside>
+    <section class="map-section" aria-label="真实地图与路线">
+      <div id="map" aria-label="东京街道地图"></div>
+      <div class="map-top"><span class="location-label">TOKYO <span>東京</span></span><div class="layer-controls"><label><input type="checkbox" id="show-buildings" checked>建筑</label><label><input type="checkbox" id="show-coverage" checked>可见区域</label><label><input type="checkbox" id="show-base" checked>最短参考</label></div></div>
+      <div class="pick-hint" id="pick-hint" hidden>点击地图设置起点</div>
+      <div class="map-legend"><span><i class="legend-square buildings-key"></i>真实建筑</span><span><i class="legend-square coverage-key"></i>可见区域并集</span><span><i class="legend-square view-key"></i>当前位置视野</span></div>
+      <div class="observation" id="observation" hidden><label for="position">沿路线观察 <output id="position-value">0%</output></label><input id="position" type="range" min="0" max="100" value="0"><span id="observation-detail"></span></div>
+      <div class="map-bottom"><div><span class="live-dot"></span><span id="data-detail" aria-live="polite">正在加载东京真实路网与建筑…</span></div><small id="accuracy-detail">视距 120 米 · 前向 180° · 二维遮挡估算</small></div>
+    </section>
+  </main>
+</body>
+</html>
