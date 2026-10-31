@@ -12,7 +12,7 @@ export default {
       if(visitors.size>10000)visitors.clear();visitors.set(ip,record);
       return mapData(request,fetch,{endpoint:env.OVERPASS_ENDPOINT,apiKey:env.OVERPASS_API_KEY,waitUntil:p=>ctx.waitUntil(p)});
     }
-    if(url.pathname==='/api/health')return Response.json({ok:true,application:'city-walk-visibility',configuredDataBackend:Boolean(env.OVERPASS_ENDPOINT)});
+    if(url.pathname==='/api/health')return Response.json({ok:true,application:'CityWalker',configuredDataBackend:Boolean(env.OVERPASS_ENDPOINT)});
     if(url.pathname.startsWith('/api/'))return new Response('Not found',{status:404});
     return env.ASSETS.fetch(request);
   }

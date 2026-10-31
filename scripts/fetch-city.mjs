@@ -14,7 +14,7 @@ const query=boundedQuery.replace('[timeout:50]','[timeout:90]');
 console.log('一次性获取 '+city.name+' / '+city.district+' 的真实道路和建筑');
 let response;
 for(let attempt=0;attempt<2;attempt++){
-  try{response=await fetch(endpoint,{method:'POST',body:new URLSearchParams({data:query}),headers:{'User-Agent':'CityWalkVisibility/0.2 (+https://github.com/Au-Cu/city-walk-visibility; manual bounded extraction)'},signal:AbortSignal.timeout(115000)});
+  try{response=await fetch(endpoint,{method:'POST',body:new URLSearchParams({data:query}),headers:{'User-Agent':'CityWalker/0.2 (+https://github.com/Au-Cu/city-walk-visibility; manual bounded extraction)'},signal:AbortSignal.timeout(115000)});
     if(response.status!==429&&response.status!==504)break;
   }catch(error){if(attempt===1)throw error;}
   if(attempt===0){console.log('服务限流或超时；等待 45 秒后仅重试一次。');await new Promise(resolve=>setTimeout(resolve,45000));}

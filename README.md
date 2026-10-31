@@ -1,8 +1,8 @@
-# 城市漫步 · 看见更多
+# CityWalker
 
 全球城市真实地图原型，东京只是示例。输入起点、零至八个按顺序经过的途经点和终点，在真实 OSM 步行路网上生成候选，使用真实建筑轮廓计算二维视线遮挡，并按全程去重可见地面面积选路。地图点击、坐标输入、拖拽标记、绕行预算、两轴投影回头、重复路段限制、前向/环视、当前视域预览、GeoJSON 导出均可用。新增城市筛选、任意坐标跳转、浏览器定位、本地 Overpass JSON 导入、计算 ETA 及独立 Cloudflare 公网部署。
 
-公网入口：[城市漫步 · Cloudflare Pages](https://city-walk-visibility.pages.dev/)。源码：[Au-Cu/city-walk-visibility](https://github.com/Au-Cu/city-walk-visibility)。
+公网入口：[CityWalker](https://city-walk-visibility.pages.dev/)。源码：[CityWalker · GitHub](https://github.com/Au-Cu/city-walk-visibility)。对外名称已统一为 CityWalker；既有网址、仓库地址、部署资源标识与浏览器缓存键保持兼容，不因改名迁移或清空数据。
 
 ## 第一批 10 城与覆盖范围
 

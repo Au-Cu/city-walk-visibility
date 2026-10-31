@@ -14,7 +14,8 @@ test('Pages isolates API Functions from static real-map assets',async()=>{
 test('standalone Cloudflare entry serves assets, health and a bounded API',async()=>{
   const env={ASSETS:{fetch:()=>new Response('asset')}};
   assert.equal(await (await worker.fetch(new Request('https://example.test/'),env,{})).text(),'asset');
-  assert.equal((await (await worker.fetch(new Request('https://example.test/api/health'),env,{})).json()).configuredDataBackend,false);
+  const health=await (await worker.fetch(new Request('https://example.test/api/health'),env,{})).json();
+  assert.equal(health.configuredDataBackend,false);assert.equal(health.application,'CityWalker');
   assert.equal((await worker.fetch(new Request('https://example.test/api/map-data?bbox=bad'),env,{})).status,400);
   assert.equal((await worker.fetch(new Request('https://example.test/api/map-data?bbox=bad',{headers:{Origin:'https://other.test'}}),env,{})).status,403);
   assert.equal((await worker.fetch(new Request('https://example.test/api/unknown'),env,{})).status,404);

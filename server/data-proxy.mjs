@@ -30,7 +30,7 @@ export async function mapData(request,fetcher=fetch,config={}){
   if(cache){const hit=await cache.match(cacheKey);if(hit)return hit;}
   const failures=[];let rateLimited=false;
   for(const {id,endpoint} of targets){try{
-    const headers={'User-Agent':`CityWalkPrototype/0.2 (+https://github.com/Au-Cu/city-walk-visibility; origin ${url.origin})`,'Accept':'application/json'};
+    const headers={'User-Agent':`CityWalker/0.2 (+https://github.com/Au-Cu/city-walk-visibility; origin ${url.origin})`,'Accept':'application/json'};
     if(id==='configured'&&config.apiKey)headers.Authorization='Bearer '+config.apiKey;
     const upstream=await fetcher(endpoint,{method:'POST',body:new URLSearchParams({data:query}),headers,signal:AbortSignal.timeout(65000)});
     if(!upstream.ok){rateLimited||=upstream.status===429;failures.push(`${id} HTTP ${upstream.status}`);continue;}

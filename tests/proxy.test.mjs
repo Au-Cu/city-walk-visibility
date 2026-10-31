@@ -18,7 +18,7 @@ test('map proxy identifies the application and never forwards visitor credential
   const request=new Request('http://example.test/api/map-data?bbox='+bbox,{headers:{Cookie:'private',Authorization:'Bearer private'}});
   const reply=await mapData(request,async(url,options)=>{
     assert.ok(url.startsWith(MAP_SERVICES.coffee));
-    assert.ok(options.headers['User-Agent'].includes('CityWalkPrototype'));
+    assert.ok(options.headers['User-Agent'].includes('CityWalker/'));
     assert.equal(options.headers.Cookie,undefined);assert.equal(options.headers.Authorization,undefined);
     return Response.json({elements:[{id:1,type:'way'}]});
   });

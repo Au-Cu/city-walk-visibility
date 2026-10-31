@@ -2,8 +2,11 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "城市漫步 · 看见更多",
-  description: "基于真实街道和建筑遮挡的全球城市步行路线规划。",
+  title: "CityWalker",
+  applicationName: "CityWalker",
+  description: "CityWalker：基于真实街道和建筑遮挡的全球城市步行路线规划。",
+  openGraph: { title: "CityWalker", siteName: "CityWalker" },
+  twitter: { title: "CityWalker" },
   icons: {
     icon: "/favicon.svg",
     shortcut: "/favicon.svg",

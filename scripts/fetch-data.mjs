@@ -15,7 +15,7 @@ for (const endpoint of endpoints) {
     console.log('Fetching Tokyo street and building data from ' + new URL(endpoint).hostname);
     const response = await fetch(endpoint, {
       method: 'POST', body: new URLSearchParams({ data: query }),
-      headers: { 'User-Agent': 'CityWalkPrototype/0.1 (local urban visibility research)' },
+      headers: { 'User-Agent': 'CityWalker/0.1 (local urban visibility research)' },
       signal: AbortSignal.timeout(115000)
     });
     if (!response.ok) throw new Error('HTTP ' + response.status);
